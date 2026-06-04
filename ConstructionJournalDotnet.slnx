@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="ConstructionJournal.Api/ConstructionJournal.Api.csproj" />
+  <Project Path="ConstructionJournal.Web/ConstructionJournal.Web.csproj" />
+</Solution>

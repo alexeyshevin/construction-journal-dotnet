@@ -1,0 +1,1 @@
+Construction journal app wit .NET and Blazor.
