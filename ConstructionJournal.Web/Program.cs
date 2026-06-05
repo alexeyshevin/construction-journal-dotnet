@@ -1,4 +1,5 @@
 using ConstructionJournal.Web.Components;
+using ConstructionJournal.Web.Services;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);

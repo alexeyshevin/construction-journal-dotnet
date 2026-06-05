@@ -1,7 +1,187 @@
 ﻿@page "/"
+@inject WorkLogsApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
-<PageTitle>Home</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+    <MudStack Spacing="3">
+        <div>
+            <MudText Typo="Typo.h4" Style="font-weight: 700">
+                Журнал работ
+            </MudText>
+            <MudText Color="Color.Secondary">
+                Учет выполненных работ на строительном объекте
+            </MudText>
+        </div>
 
-<h1>Hello, world!</h1>
+        <MudPaper Class="pa-4">
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                <MudDatePicker Label="Дата с" @bind-Date="dateFrom" />
+                <MudDatePicker Label="Дата по" @bind-Date="dateTo" />
 
-Welcome to your new app.
+                <MudSelect T="string" Label="Сортировка" @bind-Value="sort" Style="min-width: 180px">
+                    <MudSelectItem Value="@("desc")">Сначала новые</MudSelectItem>
+                    <MudSelectItem Value="@("asc")">Сначала старые</MudSelectItem>
+                </MudSelect>
+
+                <MudButton Variant="Variant.Outlined"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           Disabled="isLoading"
+                           OnClick="LoadWorkLogs">
+                    Применить
+                </MudButton>
+
+                <MudSpacer />
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="OpenCreateDialog">
+                    Добавить запись
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+
+        @if (!string.IsNullOrWhiteSpace(error))
+        {
+            <MudAlert Severity="Severity.Error">@error</MudAlert>
+        }
+
+        @if (workLogs.Count == 0)
+        {
+            <MudPaper Class="pa-8 text-center">
+                <MudText Color="Color.Secondary">Записей пока нет</MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <MudTable Items="workLogs" Hover="true">
+                <HeaderContent>
+                    <MudTh>Дата</MudTh>
+                    <MudTh>Вид работ</MudTh>
+                    <MudTh>Объем</MudTh>
+                    <MudTh>Исполнитель</MudTh>
+                    <MudTh Style="text-align: right">Действия</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.WorkDate.ToString("dd.MM.yyyy")</MudTd>
+                    <MudTd>@context.WorkType.Name</MudTd>
+                    <MudTd>@context.Amount @context.Unit</MudTd>
+                    <MudTd>@context.PerformerName</MudTd>
+                    <MudTd Style="text-align: right">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       OnClick="@(() => OpenEditDialog(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error"
+                                       OnClick="@(() => DeleteLog(context.Id))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudStack>
+</MudContainer>
+
+@code {
+    private List<WorkLogDto> workLogs = [];
+    private List<WorkTypeDto> workTypes = [];
+    private DateTime? dateFrom;
+    private DateTime? dateTo;
+    private string sort = "desc";
+    private bool isLoading;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInitialData();
+    }
+
+    private async Task LoadInitialData()
+    {
+        isLoading = true;
+        error = null;
+
+        try
+        {
+            workTypes = await Api.GetWorkTypesAsync();
+            await LoadWorkLogs();
+        }
+        catch
+        {
+            error = "Не удалось загрузить данные";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadWorkLogs()
+    {
+        isLoading = true;
+        error = null;
+
+        try
+        {
+            workLogs = await Api.GetWorkLogsAsync(dateFrom, dateTo, sort);
+        }
+        catch
+        {
+            error = "Не удалось загрузить журнал работ";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            ["WorkTypes"] = workTypes,
+            ["EditingLog"] = null
+        };
+
+        var dialog = await DialogService.ShowAsync<WorkLogDialog>("Добавить запись", parameters);
+        var result = await dialog.Result;
+
+        if (!result!.Canceled && result.Data is WorkLogFormModel model)
+        {
+            await Api.CreateAsync(model);
+            await LoadWorkLogs();
+        }
+    }
+
+    private async Task OpenEditDialog(WorkLogDto item)
+    {
+        var parameters = new DialogParameters
+        {
+            ["WorkTypes"] = workTypes,
+            ["EditingLog"] = item
+        };
+
+        var dialog = await DialogService.ShowAsync<WorkLogDialog>("Редактировать запись", parameters);
+        var result = await dialog.Result;
+
+        if (!result!.Canceled && result.Data is WorkLogFormModel model)
+        {
+            await Api.UpdateAsync(item.Id, model);
+            await LoadWorkLogs();
+        }
+    }
+
+    private async Task DeleteLog(Guid id)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Удалить запись журнала?",
+            "Действие нельзя отменить",
+            yesText: "Удалить",
+            cancelText: "Отмена");
+
+        if (confirmed == true)
+        {
+            await Api.DeleteAsync(id);
+            await LoadWorkLogs();
+        }
+    }
+}

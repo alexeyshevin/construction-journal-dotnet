@@ -1,0 +1,94 @@
+@using ConstructionJournal.Web.Models
+@inject MudBlazor.IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudDatePicker Label="Дата выполнения" @bind-Date="model.WorkDate" />
+
+            <MudSelect T="Guid" Label="Вид работ" Value="model.WorkTypeId" ValueChanged="OnWorkTypeChanged">
+                @foreach (var workType in WorkTypes)
+                {
+                    <MudSelectItem Value="@workType.Id">@workType.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudNumericField T="decimal"
+                             Label="Объем"
+                             Min="0.01M"
+                             Step="0.01M"
+                             @bind-Value="model.Amount" />
+
+            <MudTextField Label="Единица измерения"
+                          ReadOnly="true"
+                          @bind-Value="model.Unit" />
+
+            <MudTextField Label="ФИО исполнителя"
+                          @bind-Value="model.PerformerName" />
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">
+            @(EditingLog is null ? "Добавить" : "Сохранить")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public List<WorkTypeDto> WorkTypes { get; set; } = [];
+
+    [Parameter]
+    public WorkLogDto? EditingLog { get; set; }
+
+    private WorkLogFormModel model = new();
+
+    protected override void OnInitialized()
+    {
+        if (EditingLog is not null)
+        {
+            model = new WorkLogFormModel
+            {
+                WorkDate = EditingLog.WorkDate,
+                WorkTypeId = EditingLog.WorkTypeId,
+                Amount = EditingLog.Amount,
+                Unit = EditingLog.Unit,
+                PerformerName = EditingLog.PerformerName
+            };
+        }
+    }
+
+    private void OnWorkTypeChanged(Guid workTypeId)
+    {
+        model.WorkTypeId = workTypeId;
+
+        var selected = WorkTypes.FirstOrDefault(x => x.Id == workTypeId);
+
+        if (selected is not null)
+            model.Unit = selected.Unit;
+    }
+
+    private void Submit()
+    {
+        if (model.WorkDate is null ||
+            model.WorkTypeId == Guid.Empty ||
+            model.Amount <= 0 ||
+            string.IsNullOrWhiteSpace(model.Unit) ||
+            string.IsNullOrWhiteSpace(model.PerformerName))
+        {
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(model));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}
